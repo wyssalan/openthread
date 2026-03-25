@@ -272,6 +272,7 @@ ot_nexus_test(dtls "core;nexus")
 ot_nexus_test(form_join "core;nexus")
 ot_nexus_test(nat64_translator "core;nexus")
 ot_nexus_test(srp_lease "core;nexus")
+ot_nexus_test(mcastloop "core;nexus")
 
 # Trel
 ot_nexus_test(trel "trel;nexus")
