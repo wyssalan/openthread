@@ -81,6 +81,7 @@ Mle::Mle(Instance &aInstance)
 #endif
 #if OPENTHREAD_FTD
     , mRouterEligible(true)
+    , mBlockDowngrade(false)
     , mAddressSolicitPending(false)
     , mAddressSolicitRejected(false)
 #if OPENTHREAD_CONFIG_REFERENCE_DEVICE_ENABLE
@@ -600,6 +601,7 @@ void Mle::SetStateDetached(void)
     Get<MeshForwarder>().SetRxOnWhenIdle(true);
     Get<Mac::Mac>().SetBeaconEnabled(false);
 #if OPENTHREAD_FTD
+    mBlockDowngrade = false;
     ClearAlternateRloc16();
     HandleDetachStart();
 #endif
@@ -1042,6 +1044,20 @@ void Mle::HandleNotifierEvents(Events aEvents)
     if (aEvents.Contains(kEventSecurityPolicyChanged))
     {
         HandleSecurityPolicyChanged();
+    }
+
+    if (mBlockDowngrade && aEvents.Contains(kEventThreadChildRemoved))
+    {
+        mBlockDowngrade = false;
+
+        for (const Child &child : Get<ChildTable>().Iterate(Child::kInStateValid))
+        {
+            if (child.IsBlockingParentDowngrade())
+            {
+                mBlockDowngrade = true;
+                break;
+            }
+        }
     }
 #endif
 
@@ -1588,7 +1604,7 @@ void Mle::HandleUdpReceive(Message &aMessage, const Ip6::MessageInfo &aMessageIn
         ExitNow();
     }
 
-    VerifyOrExit(!IsDisabled(), error = kErrorInvalidState);
+    VerifyOrExit(!IsDisabled());
     VerifyOrExit(securitySuite == k154Security, error = kErrorParse);
 
     SuccessOrExit(error = aMessage.ReadAtAndAdvanceOffset(header));
@@ -4415,6 +4431,7 @@ Mle::Attacher::Attacher(Instance &aInstance)
     , mAddressRegistrationMode(kAppendAllAddresses)
     , mParentRequestCounter(0)
     , mAnnounceChannel(0)
+    , mChildIdRequestsRemaining(kMaxChildIdRequests)
     , mAttachCounter(0)
     , mAnnounceDelay(kAnnounceTimeout)
     , mTimer(aInstance)
@@ -4651,15 +4668,15 @@ bool Mle::Attacher::HasAcceptableParentCandidate(void) const
     bool              hasAcceptableParent = false;
     ParentRequestType parentReqType;
 
-    VerifyOrExit(mParentCandidate.IsStateParentResponse());
-
     switch (mState)
     {
     case kStateAnnounce:
+        VerifyOrExit(mParentCandidate.IsStateParentResponse());
         VerifyOrExit(!HasMoreChannelsToAnnounce());
         break;
 
     case kStateParentRequest:
+        VerifyOrExit(mParentCandidate.IsStateParentResponse());
         SuccessOrAssert(DetermineParentRequestType(parentReqType));
 
         if (parentReqType == kToRouters)
@@ -4671,6 +4688,11 @@ bool Mle::Attacher::HasAcceptableParentCandidate(void) const
             VerifyOrExit(mParentCandidate.GetTwoWayLinkQuality() == kLinkQuality3);
         }
 
+        break;
+
+    case kStateChildIdRequest:
+        VerifyOrExit(mParentCandidate.IsStateValid());
+        VerifyOrExit(mChildIdRequestsRemaining > 0);
         break;
 
     default:
@@ -4716,7 +4738,8 @@ void Mle::Attacher::HandleTimer(void)
     if (HasAcceptableParentCandidate() && (SendChildIdRequest() == kErrorNone))
     {
         SetState(kStateChildIdRequest);
-        delay = kChildIdResponseTimeout;
+        mChildIdRequestsRemaining--;
+        delay = Random::NonCrypto::AddJitter(kChildIdResponseTimeout, kChildIdResponseJitter);
         ExitNow();
     }
 
@@ -4734,6 +4757,7 @@ void Mle::Attacher::HandleTimer(void)
         mParentCandidate.SetState(Neighbor::kStateInvalid);
         mReceivedResponseFromParent = false;
         mParentRequestCounter       = 0;
+        mChildIdRequestsRemaining   = kMaxChildIdRequests;
         Get<MeshForwarder>().SetRxOnWhenIdle(true);
 
         OT_FALL_THROUGH;

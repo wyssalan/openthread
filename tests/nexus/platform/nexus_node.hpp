@@ -34,6 +34,7 @@
 #include "nexus_alarm.hpp"
 #include "nexus_core.hpp"
 #include "nexus_infra_if.hpp"
+#include "nexus_logging.hpp"
 #include "nexus_mdns.hpp"
 #include "nexus_radio.hpp"
 #include "nexus_settings.hpp"
@@ -49,6 +50,7 @@ public:
     Radio    mRadio;
     Alarm    mAlarmMilli;
     Alarm    mAlarmMicro;
+    Logging  mLogging;
     Mdns     mMdns;
     InfraIf  mInfraIf;
     Settings mSettings;
@@ -121,17 +123,9 @@ public:
 
     //- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    template <typename Type> Type &Get(void)
-    {
-        Core::Get().SetActiveNode(this);
-        return Instance::Get<Type>();
-    }
+    template <typename Type> Type &Get(void) { return Instance::Get<Type>(); }
 
-    Instance &GetInstance(void)
-    {
-        Core::Get().SetActiveNode(this);
-        return *this;
-    }
+    Instance &GetInstance(void) { return *this; }
 
     uint32_t GetId(void) { return GetInstance().GetId(); }
 
@@ -143,6 +137,7 @@ public:
     using Platform::mAlarmMicro;
     using Platform::mAlarmMilli;
     using Platform::mInfraIf;
+    using Platform::mLogging;
     using Platform::mMdns;
     using Platform::mPendingTasklet;
     using Platform::mRadio;
@@ -152,6 +147,8 @@ public:
 #endif
 
     Node *mNext;
+
+    Ip6::Address mSrpHostAddresses[OPENTHREAD_CONFIG_SRP_CLIENT_BUFFERS_MAX_HOST_ADDRESSES];
 
 private:
     Node(void)

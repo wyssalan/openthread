@@ -26,36 +26,33 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-/**
- * @file
- *   This file implements default logging functionality for CLI apps.
- */
-#include "openthread-core-config.h"
+#ifndef OT_NEXUS_PLATFORM_NEXUS_LOGGING_HPP_
+#define OT_NEXUS_PLATFORM_NEXUS_LOGGING_HPP_
 
-#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-#include <openthread/cli.h>
-#include <openthread/platform/logging.h>
+#include "common/const_cast.hpp"
+#include "common/owning_list.hpp"
+#include "instance/instance.hpp"
 
-#include "config/logging.h"
+namespace ot {
+namespace Nexus {
 
-#if OPENTHREAD_CONFIG_LOG_OUTPUT == OPENTHREAD_CONFIG_LOG_OUTPUT_APP
+void Log(const char *aFormat, ...) OT_TOOL_PRINTF_STYLE_FORMAT_ARG_CHECK(1, 2);
 
-#if OPENTHREAD_CONFIG_LOG_INSTANCE_AWARE_API_ENABLE
-extern "C" void otPlatLogOutput(otInstance *aInstance, otLogLevel aLogLevel, const char *aLogLine)
+struct Logging
 {
-    OT_UNUSED_VARIABLE(aInstance);
-    otPlatLog(aLogLevel, OT_LOG_REGION_CORE, "%s", aLogLine);
-}
-#endif
+    Logging(void);
+    ~Logging(void);
 
-extern "C" OT_TOOL_WEAK void otPlatLog(otLogLevel aLogLevel, otLogRegion aLogRegion, const char *aFormat, ...)
-{
-    va_list ap;
+    void Init(uint32_t aId);
+    void SaveLog(const char *aLogLine, TimeMilli aNow);
 
-    va_start(ap, aFormat);
-    otCliPlatLogv(aLogLevel, aLogRegion, aFormat, ap);
-    va_end(ap);
-}
+    FILE *mLogFile;
+};
 
-#endif
+} // namespace Nexus
+} // namespace ot
+
+#endif // OT_NEXUS_PLATFORM_NEXUS_LOGGING_HPP_

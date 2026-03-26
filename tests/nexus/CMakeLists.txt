@@ -45,6 +45,7 @@ add_library(ot-nexus-platform
     platform/nexus_alarm.cpp
     platform/nexus_core.cpp
     platform/nexus_infra_if.cpp
+    platform/nexus_logging.cpp
     platform/nexus_mdns.cpp
     platform/nexus_misc.cpp
     platform/nexus_node.cpp
@@ -262,6 +263,10 @@ ot_nexus_test(1_3_DBR_TC_7A "cert;nexus")
 ot_nexus_test(1_3_DBR_TC_7B "cert;nexus")
 ot_nexus_test(1_3_DBR_TC_7C "cert;nexus")
 ot_nexus_test(1_3_DBR_TC_8 "cert;nexus")
+ot_nexus_test(1_3_DBR_TC_10 "cert;nexus")
+ot_nexus_test(1_3_SRP_TC_1 "cert;nexus")
+ot_nexus_test(1_3_SRP_TC_2 "cert;nexus")
+ot_nexus_test(1_3_SRP_TC_3 "cert;nexus")
 
 # Misc tests
 ot_nexus_test(border_admitter "core;nexus")
@@ -270,6 +275,7 @@ ot_nexus_test(border_agent_tracker "core;nexus")
 ot_nexus_test(discover_scan "core;nexus")
 ot_nexus_test(dtls "core;nexus")
 ot_nexus_test(form_join "core;nexus")
+ot_nexus_test(mle_blocking_downgrade "core;nexus")
 ot_nexus_test(nat64_translator "core;nexus")
 ot_nexus_test(srp_lease "core;nexus")
 ot_nexus_test(mcastloop "core;nexus")
