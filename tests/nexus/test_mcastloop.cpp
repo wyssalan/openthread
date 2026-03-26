@@ -101,8 +101,7 @@ void TestMulticastLoop(void)
     Instance::SetLogLevel(kLogLevelNote);
 
     /**
-     * Step 1: All
-     * - Description: Form a Thread network with one router and attach two sleepy end devices.
+     * Step 1: Form a Thread network with one router and attach two sleepy end devices.
      */
     Log("Step 1: All");
 
