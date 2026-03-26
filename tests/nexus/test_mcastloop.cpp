@@ -103,7 +103,7 @@ void TestMulticastLoop(void)
     /**
      * Step 1: Form a Thread network with one router and attach two sleepy end devices.
      */
-    Log("Step 1: All");
+    Log("Step 1: Form Thread network");
 
     router.Form();
     nexus.AdvanceTime(kFormNetworkTime);
