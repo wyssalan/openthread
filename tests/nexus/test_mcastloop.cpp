@@ -13,7 +13,10 @@ namespace Nexus {
 static bool sSedAReceived = false;
 static bool sSedBReceived = false;
 
-void HandleUdpReceive(void *aContext, [[maybe_unused]] otMessage *aMessage, [[maybe_unused]] const otMessageInfo *aMessageInfo)
+// UDP receive callback for the SED nodes
+void HandleUdpReceive(void                                 *aContext,
+                      [[maybe_unused]] otMessage           *aMessage,
+                      [[maybe_unused]] const otMessageInfo *aMessageInfo)
 {
     const char *name = static_cast<const char *>(aContext);
 
@@ -38,17 +41,18 @@ void TestMulticastLoop(void)
     sedA.SetName("SED_A");
     sedB.SetName("SED_B");
 
+    // Initialize simulation
     nexus.AdvanceTime(0);
     Instance::SetLogLevel(kLogLevelNote);
 
-    // --- Netzwerk-Formation ---
+    // --- Network formation ---
     router.Form();
-    nexus.AdvanceTime(15000);
-    sedA.Join(router, Node::kAsMed);
-    sedB.Join(router, Node::kAsMed);
-    nexus.AdvanceTime(20000);
+    nexus.AdvanceTime(15000); // allow network to form
+    sedA.Join(router, Node::kAsSed);
+    sedB.Join(router, Node::kAsSed);
+    nexus.AdvanceTime(20000); // allow SEDs to join
 
-    // --- MPL Multicast-Adresse (ff35:30:<MLP>::1, Scope=5 > realm-local) ---
+    // --- MPL multicast address (ff35:30:<MLP>::1, scope 5 > realm-local) ---
     const ot::Ip6::NetworkPrefix &mlp = sedA.Get<ot::Mle::Mle>().GetMeshLocalPrefix();
 
     otIp6Address mcastAddr;
@@ -58,23 +62,20 @@ void TestMulticastLoop(void)
     mcastAddr.mFields.m8[2] = 0x00;
     mcastAddr.mFields.m8[3] = 0x30;
     for (int i = 0; i < 8; i++) mcastAddr.mFields.m8[4 + i] = mlp.m8[i];
-    mcastAddr.mFields.m8[13] = 0x01;
     mcastAddr.mFields.m8[15] = 0x01;
 
     {
         char buf[OT_IP6_ADDRESS_STRING_SIZE];
         otIp6AddressToString(&mcastAddr, buf, sizeof(buf));
-        Log("Multicast-Adresse: %s", buf);
+        Log("Multicast address: %s", buf);
     }
 
-    // --- Gruppe abonnieren ---
-    SuccessOrQuit(sedA.Get<Ip6::Netif>().SubscribeExternalMulticast(
-        static_cast<const ot::Ip6::Address &>(mcastAddr)));
-    SuccessOrQuit(sedB.Get<Ip6::Netif>().SubscribeExternalMulticast(
-        static_cast<const ot::Ip6::Address &>(mcastAddr)));
-    nexus.AdvanceTime(5000);
+    // --- Subscribe the SEDs to the multicast group ---
+    SuccessOrQuit(otIp6SubscribeMulticastAddress(&sedA.GetInstance(), &mcastAddr));
+    SuccessOrQuit(otIp6SubscribeMulticastAddress(&sedB.GetInstance(), &mcastAddr));
+    nexus.AdvanceTime(5000); // allow subscriptions to propagate
 
-    // --- Sockets via C-API öffnen (wichtig: otUdpSend nutzt vollen Stack-Pfad) ---
+    // --- Open UDP sockets using the C-API ---
     otUdpSocket socketA, socketB;
     otSockAddr  bindAddr;
     memset(&bindAddr, 0, sizeof(bindAddr));
@@ -84,17 +85,13 @@ void TestMulticastLoop(void)
     SuccessOrQuit(otUdpOpen(&sedB.GetInstance(), &socketB, HandleUdpReceive, (void *)"SED_B"));
     SuccessOrQuit(otUdpBind(&sedA.GetInstance(), &socketA, &bindAddr, OT_NETIF_THREAD_HOST));
     SuccessOrQuit(otUdpBind(&sedB.GetInstance(), &socketB, &bindAddr, OT_NETIF_THREAD_HOST));
-    nexus.AdvanceTime(2000);
+    nexus.AdvanceTime(2000); // allow sockets to be ready
 
-    // --- SED_A sendet via otUdpSend (triggert MPL Inner+Outer Split) ---
-    Log("=== SED_A sendet Multicast (mcastLoop=true, via otUdpSend) ===");
-
-    // otMessageInfo über C-API aufbauen — mMulticastLoop wird hier gesetzt
     otMessageInfo msgInfo;
     memset(&msgInfo, 0, sizeof(msgInfo));
-    msgInfo.mPeerAddr    = mcastAddr;
-    msgInfo.mPeerPort    = 1234;
-    msgInfo.mMulticastLoop = true; // ← triggert Inner+Outer auf SED-Ebene
+    msgInfo.mPeerAddr      = mcastAddr;
+    msgInfo.mPeerPort      = 1234;
+    msgInfo.mMulticastLoop = true; // triggers loopback for SED
 
     otMessage *msg = otUdpNewMessage(&sedA.GetInstance(), nullptr);
     VerifyOrQuit(msg != nullptr);
@@ -103,14 +100,19 @@ void TestMulticastLoop(void)
     SuccessOrQuit(otMessageAppend(msg, kPayload, sizeof(kPayload)));
 
     SuccessOrQuit(otUdpSend(&sedA.GetInstance(), &socketA, msg, &msgInfo));
+    nexus.AdvanceTime(2000);
 
-    nexus.AdvanceTime(10000);
+    sedB.Get<DataPollSender>().SendDataPoll();
+    sedA.Get<DataPollSender>().SendDataPoll();
 
+    nexus.AdvanceTime(2000);
+
+    // --- Verify both SEDs received the multicast ---
     VerifyOrQuit(sSedAReceived);
     VerifyOrQuit(sSedBReceived);
 
     nexus.SaveTestInfo("test_mcastloop.json");
-    Log("=== Test beendet ===");
+    Log("=== Test completed successfully ===");
 }
 
 } // namespace Nexus
