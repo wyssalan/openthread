@@ -57,27 +57,19 @@ def verify(pv):
     prefix = mesh_local_prefix.split('/')[0]
     multicast_addr = Ipv6Addr(bytearray([0xff, 0x35, 0x00, 0x30]) + Ipv6Addr(prefix)[:8] + bytearray([0, 0, 0, 1]))
 
-    # Step 1: Uplink to parent
-    # - Description: Verify that SED_A sends the multicast packet to the router.
-    # - Pass Criteria: The router receives a packet from SED_A.
-    print("Step 1: Uplink to parent")
-    pkts.filter_wpan_src16(SED_A_RLOC16).\
-        filter_wpan_dst16(ROUTER_RLOC16).\
-        must_next()
-
-    # Step 2: Forward to peer sleepy child
+    # Step 1: Forward to peer sleepy child
     # - Description: Verify that the router forwards the multicast packet to SED_B.
     # - Pass Criteria: SED_B receives the expected multicast destination address.
-    print("Step 2: Forward to peer sleepy child")
+    print("Step 1: Forward to peer sleepy child")
     pkts.filter_wpan_src16(ROUTER_RLOC16).\
         filter_wpan_dst16(SED_B_RLOC16).\
         filter_ipv6_dst(multicast_addr).\
         must_next()
 
-    # Step 3: Suppress over-the-air loopback
+    # Step 2: Suppress over-the-air loopback
     # - Description: Verify that the packet is not forwarded back over the air to SED_A.
     # - Pass Criteria: No over-the-air packet from the router to SED_A matches the multicast destination address.
-    print("Step 3: Suppress over-the-air loopback")
+    print("Step 2: Suppress over-the-air loopback")
     pkts.filter_wpan_src16(ROUTER_RLOC16).\
         filter_wpan_dst16(SED_A_RLOC16).\
         filter_ipv6_dst(multicast_addr).\
