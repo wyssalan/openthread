@@ -341,6 +341,44 @@ for node in [r1, r2]:
 
 verify(int(new_counters['RxSuccess']) == int(old_counters['RxSuccess']) + 2)
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# Subscribe to a site-local multicast address only on sed1 and sed2
+
+mcast_addr = 'ff05:0:0:0:0:0:0:1234'
+sed1.add_ip_maddr(mcast_addr)
+sed2.add_ip_maddr(mcast_addr)
+time.sleep(1)
+maddrs = sed1.get_ip_maddrs()
+verify(any(mcast_addr in maddr for maddr in maddrs))
+maddrs = sed2.get_ip_maddrs()
+verify(any(mcast_addr in maddr for maddr in maddrs))
+
+# sed1  =>> site-local mcast addr (on sed1 and sed2) without `multicast-loop`.
+# Expected to receive from [sed2] only.
+
+old_counters = sed1.get_ip_counters()
+outputs = sed1.cli('ping', mcast_addr)
+new_counters = sed1.get_ip_counters()
+
+verify(len(outputs) == 2)
+ml_addr = sed2.get_mleid_ip_addr()
+verify(any(ml_addr in line for line in outputs))
+
+# Validate that the `RxSuccess` counter increased by exactly one (for the
+# single ping reply from sed2). This confirms r4 forwarded the multicast
+# echo request to sed2 but not back to the originator sed1.
+
+verify(int(new_counters['RxSuccess']) == int(old_counters['RxSuccess']) + 1)
+
+# r4  =>> site-local mcast addr (on sed1 and sed2) without `multicast-loop`.
+# Expected to receive from [sed1, sed2].
+
+outputs = r4.cli('ping', mcast_addr)
+verify(len(outputs) == 3)
+for node in [sed1, sed2]:
+    ml_addr = node.get_mleid_ip_addr()
+    verify(any(ml_addr in line for line in outputs))
+
 # -----------------------------------------------------------------------------------------------------------------------
 # Test finished
 
